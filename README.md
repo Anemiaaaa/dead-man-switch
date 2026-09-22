@@ -7,10 +7,15 @@ shares. No custodian, no oracle, no court.
 **Live on devnet:**
 [`9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm`](https://explorer.solana.com/address/9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm?cluster=devnet)
 
-> 🚧 Work in progress. The program is deployed and feature-complete (76 tests), the Go
-> keeper and the Action server run against it (50 tests), and a full open → fund → expire →
-> claim cycle has run on devnet. A public host for the blink and the demo recording are
+> 🚧 Work in progress. The program is deployed and feature-complete (76 tests), and the Go
+> keeper and the Action server run against it (53 tests). A public host for the blink is
 > next. See [Roadmap](#roadmap).
+
+![A vault opened, funded, left to expire, and claimed by both heirs on devnet](docs/demo.gif)
+
+Nothing in that recording is staged: it runs against the deployed program, and every
+signature it prints is on chain. Reproduce it with [`./scripts/demo.sh`](scripts/demo.sh),
+or replay the raw capture with `asciinema play docs/demo.cast`.
 
 ## The problem
 
@@ -29,7 +34,7 @@ flowchart TD
     Owner[Owner wallet] -->|initialize_vault| Vault[Vault PDA<br/>seeds: vault, owner, vault_id]
     Owner -->|deposit_sol / deposit_spl| Funds[Vault funds<br/>lamports on the PDA<br/>or an ATA it owns]
     Owner -->|check_in| Vault
-    Owner -->|add / remove_beneficiary| Vault
+    Owner -->|set_beneficiaries| Vault
     Owner -->|withdraw, while alive| Funds
     Keeper[Go keeper service<br/>read-only] -.->|reminders| Owner
     Keeper -.->|watches| Vault
@@ -255,6 +260,8 @@ keeper/                     Go services and tooling
   internal/api/             read-only HTTP index
   internal/blink/           the Action endpoints and their spec types
   testdata/                 golden account bytes, written by the Rust tests
+scripts/demo.sh             the lifecycle above, start to finish, on devnet
+docs/                       the recording
 ```
 
 The [keeper](keeper/README.md) is a read-only service — it holds no keys and signs nothing.
@@ -270,7 +277,8 @@ protocol creates.
 - [x] Go keeper: vault monitoring, deadline reminders, REST index
 - [x] Devnet deploy, `dmsctl`, full cycle run on-chain
 - [x] Solana Action / Blink for `check_in` and `claim`
-- [ ] Public host for the blink, demo recording
+- [x] Recorded demo of the full lifecycle on devnet
+- [ ] Public host for the blink
 - [ ] Fuzzing over amounts and timestamps
 
 ## License

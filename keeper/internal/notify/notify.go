@@ -34,29 +34,15 @@ func (r Reminder) Message() string {
 			"Your Dead Man's Switch vault %s passed its deadline %s ago. "+
 				"Your heirs can claim it right now. Check in to stop that — "+
 				"a check-in still works until the first claim lands.",
-			short(r.Vault), round(-r.TimeLeft),
+			short(r.Vault), dms.HumanDuration(-r.TimeLeft),
 		)
 	}
 
 	return fmt.Sprintf(
 		"Your Dead Man's Switch vault %s unlocks for your heirs in %s (%s UTC). "+
 			"Check in to reset the timer.",
-		short(r.Vault), round(r.TimeLeft), r.Deadline.Format(time.DateTime),
+		short(r.Vault), dms.HumanDuration(r.TimeLeft), r.Deadline.Format(time.DateTime),
 	)
-}
-
-// round trims a duration to something worth reading out loud.
-func round(d time.Duration) string {
-	switch {
-	case d >= 48*time.Hour:
-		return fmt.Sprintf("%d days", int(d.Hours()/24))
-	case d >= time.Hour:
-		return fmt.Sprintf("%d hours", int(d.Hours()))
-	case d >= time.Minute:
-		return fmt.Sprintf("%d minutes", int(d.Minutes()))
-	default:
-		return "less than a minute"
-	}
 }
 
 // short abbreviates a key the way explorers do.

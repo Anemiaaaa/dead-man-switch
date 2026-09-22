@@ -152,7 +152,7 @@ go test ./...
 go test -race ./...
 ```
 
-50 tests, no network and no database: the chain sits behind interfaces and the cache
+53 tests, no network and no database: the chain sits behind interfaces and the cache
 defaults to memory. Three decode golden account bytes written by the Anchor program's own
 serializer — the only check that the hand-written decoder agrees with the program rather
 than with a mirror of the same assumptions. The blink tests decode the transaction the

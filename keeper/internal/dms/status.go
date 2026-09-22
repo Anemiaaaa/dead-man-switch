@@ -1,6 +1,9 @@
 package dms
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Status is the one-word summary the API and the reminders work from.
 type Status string
@@ -45,4 +48,30 @@ func (v *Vault) Status(now time.Time, dueSoon time.Duration) Status {
 // NeedsAttention reports whether a status is one the owner should hear about.
 func NeedsAttention(s Status) bool {
 	return s == StatusDueSoon || s == StatusExpired
+}
+
+// HumanDuration renders a duration the way a reminder or a card should say it
+// out loud: one unit, rounded down, correctly pluralised.
+//
+// Shared rather than duplicated because both the reminders and the blink cards
+// put it in front of a person, and "in 1 minutes" reads as carelessness
+// wherever it appears.
+func HumanDuration(d time.Duration) string {
+	switch {
+	case d >= 48*time.Hour:
+		return plural(int(d.Hours()/24), "day")
+	case d >= time.Hour:
+		return plural(int(d.Hours()), "hour")
+	case d >= time.Minute:
+		return plural(int(d.Minutes()), "minute")
+	default:
+		return "less than a minute"
+	}
+}
+
+func plural(n int, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return strconv.Itoa(n) + " " + unit + "s"
 }

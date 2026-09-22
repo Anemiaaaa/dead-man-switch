@@ -219,7 +219,7 @@ func (s *Server) getClaim(w http.ResponseWriter, r *http.Request) {
 	if left := vault.TimeLeft(s.now()); left > 0 {
 		response.Disabled = true
 		response.Error = &Error{Message: fmt.Sprintf(
-			"The owner still has %s before this vault unlocks.", humanise(left))}
+			"The owner still has %s before this vault unlocks.", dms.HumanDuration(left))}
 	}
 
 	writeJSON(w, s.Logger, http.StatusOK, response)
@@ -244,7 +244,7 @@ func (s *Server) postClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	if left := vault.TimeLeft(s.now()); left > 0 {
 		writeError(w, s.Logger, http.StatusBadRequest, fmt.Sprintf(
-			"Too early — the owner still has %s to check in.", humanise(left)))
+			"Too early — the owner still has %s to check in.", dms.HumanDuration(left)))
 		return
 	}
 
@@ -359,24 +359,11 @@ func (s *Server) describe(v *dms.Vault) string {
 	case left <= 0:
 		return fmt.Sprintf("Vault %s passed its deadline %s ago. Its heirs can claim right now — "+
 			"a check-in still works until the first one does.",
-			shorten(v.Address), humanise(-left))
+			shorten(v.Address), dms.HumanDuration(-left))
 	default:
 		return fmt.Sprintf("Vault %s unlocks for its %d heir(s) in %s, on %s UTC.",
-			shorten(v.Address), len(v.Beneficiaries), humanise(left),
+			shorten(v.Address), len(v.Beneficiaries), dms.HumanDuration(left),
 			v.Deadline().Format(time.DateTime))
-	}
-}
-
-func humanise(d time.Duration) string {
-	switch {
-	case d >= 48*time.Hour:
-		return fmt.Sprintf("%d days", int(d.Hours()/24))
-	case d >= time.Hour:
-		return fmt.Sprintf("%d hours", int(d.Hours()))
-	case d >= time.Minute:
-		return fmt.Sprintf("%d minutes", int(d.Minutes()))
-	default:
-		return "less than a minute"
 	}
 }
 
