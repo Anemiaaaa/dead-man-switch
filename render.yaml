@@ -1,14 +1,12 @@
-# Render blueprint for the blink server, as an alternative to fly.toml.
+# Render blueprint for the blink server, and the default host.
 #
-# Render and Koyeb both build this repository's Dockerfile straight from
-# GitHub and neither asks for a card on the free tier, which Fly does before
-# it will create an app at all.
+# Render builds this repository's Dockerfile straight from GitHub and does not
+# ask for a card, which Fly does before it will create an app at all.
 #
-# Caveat worth knowing before you pick: a free Render service sleeps after
-# about fifteen minutes idle and takes tens of seconds to wake. A blink that
-# slow reads as broken, so Koyeb — whose free tier does not sleep — is the
-# better host for this particular thing. This file exists so the choice is
-# one commit away either direction.
+# The catch is that a free service sleeps after about fifteen minutes idle and
+# takes roughly a minute to wake — long enough that a blink client gives up
+# and the card reads as broken. `.github/workflows/keep-warm.yml` holds it
+# awake, which fits in Render's 750 free instance hours a month.
 #
 # DMS_BLINK_BASE_URL is deliberately unset: the server reads its public origin
 # from the forwarded headers Render's proxy sets.

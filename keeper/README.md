@@ -147,10 +147,22 @@ Nothing needs to be set per host. The server binds `PORT` when the platform inje
 and reads its public origin from the forwarded headers, so the same image runs on any of
 them, behind a tunnel, or on a laptop.
 
-Two things to know before choosing. Fly asks for a payment method before it will create an
-app at all, free tier or not. A free Render service sleeps after about fifteen minutes idle
-and takes tens of seconds to wake, which for a blink reads as broken. Koyeb's free tier
-asks for neither and does not sleep.
+What each host costs you, as of September 2026:
+
+| Host | Card up front | Sleeps when idle |
+| --- | --- | --- |
+| Render | no | yes, after ~15 min; ~1 min to wake |
+| Fly | **yes**, before it will create an app at all | configurable |
+| Koyeb | — | free tier withdrawn for new signups |
+
+Koyeb was the obvious pick until Mistral acquired it in February 2026 and closed the free
+Starter plan to new accounts.
+
+A minute of cold start is fatal for a blink: a client times out and the card reads as
+broken. Render grants 750 instance hours a month, which is one service running
+continuously, so [`keep-warm.yml`](../.github/workflows/keep-warm.yml) pings `/healthz`
+every ten minutes to hold it awake — inside the allowance rather than around it. Set the
+`BLINK_URL` repository variable to switch it on; until then it does nothing.
 
 Two details the spec is unforgiving about, both of which fail silently:
 

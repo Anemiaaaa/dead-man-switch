@@ -1,0 +1,51 @@
+# Keeps the deployed blink from going to sleep.
+#
+# A free Render web service spins down after about fifteen minutes idle and
+# takes roughly a minute to come back. A blink client gives up long before
+# that, so the first person to tap the link would see a broken card. Render's
+# free allowance is 750 instance hours a month — one service running
+# continuously — so holding this one awake stays inside the allowance rather
+# than working around it.
+#
+# Set the `BLINK_URL` repository variable (Settings → Secrets and variables →
+# Actions → Variables) to the deployed origin, e.g.
+# https://dead-man-switch-blink.onrender.com. Until it is set this workflow
+# does nothing.
+#
+# Two things GitHub does not promise: scheduled runs are best-effort and
+# often late under load, and it disables schedules in repositories with no
+# activity for 60 days. An uptime monitor is sturdier if the link ever
+# matters more than it does now.
+
+name: Keep the blink warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the health endpoint
+        env:
+          BLINK_URL: ${{ vars.BLINK_URL }}
+        run: |
+          if [ -z "$BLINK_URL" ]; then
+            echo "BLINK_URL is not set — nothing deployed yet, nothing to ping."
+            exit 0
+          fi
+
+          # Generous timeout: if the service did fall asleep, this request is
+          # the one paying for the cold start.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 "${BLINK_URL%/}/healthz")
+          echo "GET ${BLINK_URL%/}/healthz -> $code"
+          [ "$code" = "200" ]
