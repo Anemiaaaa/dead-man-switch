@@ -7,6 +7,11 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Pinned, not `latest`. An unpinned toolchain means the build changes on
+  # its own whenever upstream releases, so a red CI stops telling you
+  # anything about your own commit. This is the version the project is
+  # developed and verified against.
+  ANCHOR_VERSION: "1.1.2"
 
 jobs:
   program:
@@ -34,7 +39,7 @@ jobs:
             ~/.local/share/solana
             ~/.cache/solana
             ~/.avm
-          key: solana-${{ runner.os }}-${{ hashFiles('Anchor.toml', 'rust-toolchain.toml') }}
+          key: solana-${{ runner.os }}-anchor${{ env.ANCHOR_VERSION }}-${{ hashFiles('Anchor.toml', 'rust-toolchain.toml') }}
 
       - name: Install Solana CLI and Anchor
         if: steps.solana-cache.outputs.cache-hit != 'true'
@@ -42,13 +47,22 @@ jobs:
           sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-          avm install latest
-          avm use latest
+          avm install "$ANCHOR_VERSION"
+          avm use "$ANCHOR_VERSION"
 
       - name: Add toolchain to PATH
         run: |
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
           echo "$HOME/.avm/bin" >> "$GITHUB_PATH"
+
+      # Printed before anything can fail, so a broken run says which
+      # toolchain broke it instead of leaving it to be guessed at.
+      - name: Toolchain versions
+        run: |
+          rustc --version
+          cargo --version
+          solana --version
+          anchor --version
 
       # The LiteSVM tests load target/deploy/dead_man_switch.so through
       # include_bytes!, so the SBF build has to come before anything that
