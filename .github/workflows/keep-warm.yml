@@ -12,16 +12,22 @@
 # https://dead-man-switch-blink.onrender.com. Until it is set this workflow
 # does nothing.
 #
-# Two things GitHub does not promise: scheduled runs are best-effort and
-# often late under load, and it disables schedules in repositories with no
-# activity for 60 days. An uptime monitor is sturdier if the link ever
-# matters more than it does now.
+# Two things GitHub does not promise: scheduled runs are best-effort and are
+# dropped outright under load, and it disables schedules in repositories with
+# no activity for 60 days. Measured cold start on Render is about 13 seconds,
+# so a missed ping is a slow first tap rather than a broken link — but if the
+# link ever matters more than it does now, an external uptime monitor keeps
+# its promises and GitHub's scheduler does not.
 
 name: Keep the blink warm
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Every ten minutes, but deliberately off the hour. GitHub runs scheduled
+    # workflows on a best-effort basis and sheds load at the round minutes,
+    # when every `*/10` cron on the platform fires at once — an offset costs
+    # nothing and misses that stampede.
+    - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch:
 
 permissions:
