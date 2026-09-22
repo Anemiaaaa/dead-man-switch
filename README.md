@@ -6,10 +6,11 @@ shares. No custodian, no oracle, no court.
 
 **Live on devnet:**
 [`9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm`](https://explorer.solana.com/address/9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm?cluster=devnet)
+· **Blink:** [check in](https://dial.to/?action=solana-action:https://dead-man-switch-blink.onrender.com/api/actions/check-in)
 
-> 🚧 Work in progress. The program is deployed and feature-complete (76 tests), and the Go
-> keeper and the Action server run against it (55 tests). A public host for the blink is
-> next. See [Roadmap](#roadmap).
+> 🚧 Work in progress. The program is deployed and feature-complete (76 tests), the Go
+> keeper and the Action server run against it (55 tests), and the blink is live. Fuzzing is
+> the last thing on the list. See [Roadmap](#roadmap).
 
 ![A vault opened, funded, left to expire, and claimed by both heirs on devnet](docs/demo.gif)
 
@@ -170,7 +171,15 @@ A full cycle recorded on devnet, on a vault with a two-minute timer and a 60/40 
 ### As a link
 
 The same two actions are served as a [Solana Action](https://solana.com/docs/advanced/actions),
-so a check-in is one tap from a link, a QR code or a feed rather than a terminal:
+so a check-in is one tap from a link, a QR code or a feed rather than a terminal. It is
+live at **https://dead-man-switch-blink.onrender.com**:
+
+- [check in](https://dial.to/?action=solana-action:https://dead-man-switch-blink.onrender.com/api/actions/check-in)
+- [claim](https://dial.to/?action=solana-action:https://dead-man-switch-blink.onrender.com/api/actions/claim)
+
+Those open as interactive cards in a client that understands blinks — a wallet extension,
+a Discord bot, a QR scanner. Anywhere else they are ordinary links, which is the honest
+state of blink support today.
 
 ```bash
 go run ./cmd/blink        # needs a public HTTPS origin to be reachable by a client
@@ -185,12 +194,16 @@ POST /api/actions/claim?vault=<address>     → an unsigned transaction
 ```
 
 The server holds no keys and signs nothing — it hands the unsigned transaction to the
-user's wallet, which is the only thing that ever sees a private key. Against the live
-devnet vault the card reads:
+user's wallet, which is the only thing that ever sees a private key. It is also never told
+its own hostname: icon URLs have to be absolute, so it reads its public origin from the
+proxy's forwarded headers, which is what lets the same image run on Render, behind a
+tunnel, or on a laptop with nothing changed.
+
+Asked about the live devnet vault, the deployed card reads:
 
 > Vault `5uyK…vFuQ` unlocks for its 2 heir(s) in 29 days, on 2026-10-22 06:49:26 UTC.
 
-and the transaction it returns simulates clean on devnet:
+and the transaction it hands back simulates clean on devnet:
 
 ```
 Program log: Instruction: CheckIn
@@ -278,7 +291,7 @@ protocol creates.
 - [x] Devnet deploy, `dmsctl`, full cycle run on-chain
 - [x] Solana Action / Blink for `check_in` and `claim`
 - [x] Recorded demo of the full lifecycle on devnet
-- [ ] Public host for the blink
+- [x] Blink deployed and reachable over public HTTPS
 - [ ] Fuzzing over amounts and timestamps
 
 ## License

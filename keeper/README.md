@@ -139,6 +139,9 @@ https://dial.to/?action=solana-action:<base-url>/api/actions/check-in
 
 ### Hosting it
 
+Deployed at **https://dead-man-switch-blink.onrender.com** — Render, free tier, built from
+the `Dockerfile` in the repository root.
+
 The repository root carries a `Dockerfile` plus configuration for two hosts:
 [`fly.toml`](../fly.toml) and [`render.yaml`](../render.yaml). Koyeb needs no config file —
 point it at the repository and it builds the same Dockerfile.
