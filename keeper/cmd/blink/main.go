@@ -40,7 +40,7 @@ func run(logger *slog.Logger) error {
 	var (
 		endpoint = env("DMS_RPC_ENDPOINT", "https://api.devnet.solana.com")
 		program  = env("DMS_PROGRAM_ID", "9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm")
-		listen   = env("DMS_BLINK_LISTEN_ADDR", ":8081")
+		listen   = listenAddr()
 		// Empty on purpose: behind a proxy the server reads its public origin
 		// from the forwarded headers, so the deployment does not have to know
 		// its own hostname before it has one.
@@ -112,4 +112,21 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// listenAddr picks the address to bind.
+//
+// Render, Koyeb, Cloud Run, Railway and Heroku all inject PORT and expect the
+// process to bind exactly that. Honouring it means the same image deploys to
+// any of them with no per-platform override — and an explicit
+// DMS_BLINK_LISTEN_ADDR still wins for the cases where the platform is wrong
+// or there is no platform at all.
+func listenAddr() string {
+	if addr := os.Getenv("DMS_BLINK_LISTEN_ADDR"); addr != "" {
+		return addr
+	}
+	if port := os.Getenv("PORT"); port != "" {
+		return ":" + port
+	}
+	return ":8081"
 }

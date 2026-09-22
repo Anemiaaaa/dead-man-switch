@@ -137,6 +137,21 @@ a demo, run a tunnel and set the base URL to the address it hands you, then shar
 https://dial.to/?action=solana-action:<base-url>/api/actions/check-in
 ```
 
+### Hosting it
+
+The repository root carries a `Dockerfile` plus configuration for two hosts:
+[`fly.toml`](../fly.toml) and [`render.yaml`](../render.yaml). Koyeb needs no config file —
+point it at the repository and it builds the same Dockerfile.
+
+Nothing needs to be set per host. The server binds `PORT` when the platform injects one,
+and reads its public origin from the forwarded headers, so the same image runs on any of
+them, behind a tunnel, or on a laptop.
+
+Two things to know before choosing. Fly asks for a payment method before it will create an
+app at all, free tier or not. A free Render service sleeps after about fifteen minutes idle
+and takes tens of seconds to wake, which for a blink reads as broken. Koyeb's free tier
+asks for neither and does not sleep.
+
 Two details the spec is unforgiving about, both of which fail silently:
 
 - **CORS.** Missing headers mean the browser blocks the request before this server ever

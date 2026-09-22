@@ -1,0 +1,30 @@
+# Render blueprint for the blink server, as an alternative to fly.toml.
+#
+# Render and Koyeb both build this repository's Dockerfile straight from
+# GitHub and neither asks for a card on the free tier, which Fly does before
+# it will create an app at all.
+#
+# Caveat worth knowing before you pick: a free Render service sleeps after
+# about fifteen minutes idle and takes tens of seconds to wake. A blink that
+# slow reads as broken, so Koyeb — whose free tier does not sleep — is the
+# better host for this particular thing. This file exists so the choice is
+# one commit away either direction.
+#
+# DMS_BLINK_BASE_URL is deliberately unset: the server reads its public origin
+# from the forwarded headers Render's proxy sets.
+
+services:
+  - type: web
+    name: dead-man-switch-blink
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt
+    healthCheckPath: /healthz
+    envVars:
+      - key: DMS_CLUSTER
+        value: devnet
+      - key: DMS_RPC_ENDPOINT
+        value: https://api.devnet.solana.com
+      - key: DMS_PROGRAM_ID
+        value: 9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm
