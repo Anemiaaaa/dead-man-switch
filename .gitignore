@@ -7,6 +7,12 @@ test-ledger
 .yarn
 .surfpool
 
+# Trident fuzzing — build output and run artifacts. The generated sources
+# (types.rs, fuzz_accounts.rs) and the hand-written test_fuzz.rs are tracked.
+trident-tests/target
+trident-tests/trident-artifacts
+.vscode
+
 # Go keeper — built binaries
 keeper/bin/
 keeper/keeper

@@ -1,0 +1,8 @@
+[fuzz.metrics]
+enabled = true
+
+
+[[fuzz.programs]]
+address = "9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm"
+program = "../target/deploy/dead_man_switch.so"
+ 

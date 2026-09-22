@@ -8,9 +8,9 @@ shares. No custodian, no oracle, no court.
 [`9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm`](https://explorer.solana.com/address/9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm?cluster=devnet)
 · **Blink:** [check in](https://dial.to/?action=solana-action:https://dead-man-switch-blink.onrender.com/api/actions/check-in)
 
-> 🚧 Work in progress. The program is deployed and feature-complete (76 tests), the Go
-> keeper and the Action server run against it (55 tests), and the blink is live. Fuzzing is
-> the last thing on the list. See [Roadmap](#roadmap).
+> The program is deployed and feature-complete (76 tests plus fuzzing), the Go keeper and
+> the Action server run against it (55 tests), and the blink is live.
+> See [Roadmap](#roadmap).
 
 ![A vault opened, funded, left to expire, and claimed by both heirs on devnet](docs/demo.gif)
 
@@ -248,6 +248,44 @@ validator and no network. `anchor build` must run first, since the tests load th
 layout, both checked in CI — change the account and both sides fail until they are updated
 together. Regenerate with `UPDATE_GOLDEN=1 cargo test --test test_golden_layout`.
 
+## Fuzzing
+
+The tests above check sequences somebody thought of. [Trident](https://ackee.xyz/trident)
+checks the ones nobody did — random interleavings of deposits, withdrawals, check-ins and
+claims, with random jumps forward in time, which is the one input this protocol is
+actually built around.
+
+```bash
+cd trident-tests && trident fuzz run fuzz_0
+```
+
+A thousand iterations, about 119,000 instructions:
+
+| Instruction | Invoked | Succeeded | Rejected |
+| --- | --- | --- | --- |
+| `initialize_vault` | 1,000 | 1,000 | 0 |
+| `deposit_sol` | 17,522 | 4,659 | 12,863 |
+| `withdraw_sol` | 16,877 | 1,370 | 15,507 |
+| `check_in` | 16,648 | 3,646 | 13,002 |
+| `claim_sol` | 16,626 | 2,936 | 13,690 |
+| **hostile attempts** | **50,097** | **0** | **50,097** |
+
+No panics, no invariant violations. The hostile row is the one worth reading twice: fifty
+thousand attempts by a wallet with no claim on the vault to check in, withdraw or claim,
+and not one of them got through.
+
+Four properties are asserted after *every* action, read entirely from on-chain state so
+the program is held to its own stored words rather than to a model kept alongside it:
+
+- shares always total exactly 10,000 basis points, with no duplicate or empty heir;
+- the switch has either not tripped — no pool, nobody paid — or it has, and there is a pool;
+- **once the pool is fixed, the vault still holds at least what every unpaid heir is owed**;
+- a claim only ever succeeds past the deadline, for a listed heir who has not been paid.
+
+The third is the one that catches a bad payout. And because a fuzz suite that cannot fail
+is worth nothing, the invariants were verified by deliberately breaking one — the run
+aborts and names the offending value.
+
 One file per instruction, 73 tests in total:
 
 ```bash
@@ -273,6 +311,7 @@ keeper/                     Go services and tooling
   internal/api/             read-only HTTP index
   internal/blink/           the Action endpoints and their spec types
   testdata/                 golden account bytes, written by the Rust tests
+trident-tests/              fuzzing: random orderings, amounts and time jumps
 scripts/demo.sh             the lifecycle above, start to finish, on devnet
 docs/                       the recording
 ```
@@ -292,7 +331,7 @@ protocol creates.
 - [x] Solana Action / Blink for `check_in` and `claim`
 - [x] Recorded demo of the full lifecycle on devnet
 - [x] Blink deployed and reachable over public HTTPS
-- [ ] Fuzzing over amounts and timestamps
+- [x] Fuzzing over amounts, orderings and timestamps
 
 ## License
 
