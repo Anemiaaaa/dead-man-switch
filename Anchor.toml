@@ -1,0 +1,22 @@
+skip_local_validator = true
+
+[toolchain]
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+dead_man_switch = "9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm"
+
+[programs.devnet]
+dead_man_switch = "9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "cargo test"
+
+[hooks]

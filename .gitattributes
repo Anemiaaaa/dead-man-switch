@@ -1,0 +1,10 @@
+# Keep LF in the repository whatever the checkout platform does. The CI runs on
+# Linux and the toolchain lives in WSL, so CRLF sneaking into a shell script or
+# a Rust source file is a portability bug waiting to happen.
+* text=auto eol=lf
+
+# The golden account files are exact byte images of on-chain state. Git would
+# normally detect them as binary on its own, but saying so is cheaper than
+# debugging why a cloned repo fails its layout tests.
+*.bin binary
+*.so  binary
