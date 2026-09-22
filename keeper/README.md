@@ -109,6 +109,42 @@ Instruction discriminators come from the generated IDL rather than from a hash r
 here, so a rename in the program surfaces as a failing transaction against a stale
 constant instead of a silently different instruction.
 
+## `blink` — the same vault as a link
+
+The third binary: a [Solana Action](https://solana.com/docs/advanced/actions) server. A
+client fetches it with GET to learn what can be done, POSTs the user's public key, and gets
+back an **unsigned** transaction to hand to that user's wallet. Like the keeper, it holds
+no keys.
+
+```bash
+go build -o blink ./cmd/blink && ./blink
+```
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DMS_BLINK_LISTEN_ADDR` | `:8081` | listen address |
+| `DMS_BLINK_BASE_URL` | `http://localhost:8081` | this server's **public** origin |
+| `DMS_CLUSTER` | `devnet` | picks the CAIP-2 chain id in `X-Blockchain-Ids` |
+
+`DMS_BLINK_BASE_URL` matters more than it looks: icons must be absolute URLs, and a server
+behind a tunnel or a proxy cannot infer its own public address from the request. Point it
+at whatever the outside world sees.
+
+A blink also has to be reachable over public HTTPS — a client cannot fetch `localhost`. For
+a demo, run a tunnel and set the base URL to the address it hands you, then share:
+
+```
+https://dial.to/?action=solana-action:<base-url>/api/actions/check-in
+```
+
+Two details the spec is unforgiving about, both of which fail silently:
+
+- **CORS.** Missing headers mean the browser blocks the request before this server ever
+  sees it, and the card simply never appears.
+- **Signature slots.** The transaction is unsigned but must still carry one zeroed
+  signature slot per required signer; a wallet reads the count from the message header and
+  rejects bytes that leave them out.
+
 ## Tests
 
 ```bash
@@ -116,7 +152,8 @@ go test ./...
 go test -race ./...
 ```
 
-33 tests, no network and no database: the chain is behind a `VaultSource` interface and the
-cache defaults to memory. Three of them decode golden account bytes written by the Anchor
-program's own serializer — the only check that the hand-written decoder agrees with the
-program rather than with a mirror of the same assumptions.
+50 tests, no network and no database: the chain sits behind interfaces and the cache
+defaults to memory. Three decode golden account bytes written by the Anchor program's own
+serializer — the only check that the hand-written decoder agrees with the program rather
+than with a mirror of the same assumptions. The blink tests decode the transaction the
+server returns and assert on its fee payer, its program and its empty signature slot.

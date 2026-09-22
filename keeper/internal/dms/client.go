@@ -53,6 +53,18 @@ func (c *Client) Vaults(ctx context.Context) ([]*Vault, error) {
 	return vaults, nil
 }
 
+// LatestBlockhash is the one thing a transaction builder needs from this
+// reader. Reading a blockhash is still reading, so it belongs here rather than
+// in the signing client.
+func (c *Client) LatestBlockhash(ctx context.Context) (solana.Hash, error) {
+	out, err := c.rpc.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		return solana.Hash{}, fmt.Errorf("dms: latest blockhash: %w", err)
+	}
+
+	return out.Value.Blockhash, nil
+}
+
 // Vault fetches a single vault by address.
 func (c *Client) Vault(ctx context.Context, address solana.PublicKey) (*Vault, error) {
 	account, err := c.rpc.GetAccountInfoWithOpts(ctx, address, &rpc.GetAccountInfoOpts{

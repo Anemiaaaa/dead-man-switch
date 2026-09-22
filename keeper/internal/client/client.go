@@ -1,61 +1,42 @@
 // Package client builds and sends Dead Man's Switch instructions.
 //
-// Kept apart from the keeper on purpose. The keeper reads the chain and holds
-// no keys; this package signs, so it belongs to the CLI and to nothing that
-// runs unattended. Nothing under `internal/watch` imports it.
-//
-// The discriminators below come from the generated IDL rather than from a hash
-// computed here, so a rename in the program shows up as a failing transaction
-// against a stale constant instead of a silently different instruction.
+// [Instructions] is key-less and shared; [Client] is the part that signs, and
+// it belongs to the CLI and to nothing that runs unattended. Nothing under
+// `internal/watch` imports this package.
 package client
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-
-	"github.com/Anemiaaaa/dead-man-switch/keeper/internal/dms"
 )
-
-var (
-	ixInitializeVault = [8]byte{48, 191, 163, 44, 71, 129, 63, 164}
-	ixDepositSOL      = [8]byte{108, 81, 78, 117, 125, 155, 56, 200}
-	ixCheckIn         = [8]byte{209, 253, 4, 217, 250, 241, 207, 50}
-	ixWithdrawSOL     = [8]byte{145, 131, 74, 136, 65, 137, 42, 38}
-	ixClaimSOL        = [8]byte{139, 113, 179, 189, 190, 30, 132, 195}
-	ixCloseVault      = [8]byte{141, 103, 17, 126, 72, 75, 29, 29}
-)
-
-// Heir is one entry of the table passed to `initialize_vault`.
-type Heir struct {
-	Address  solana.PublicKey
-	ShareBPS uint16
-}
 
 // Client signs and sends on behalf of one keypair.
 type Client struct {
-	rpc       *rpc.Client
-	programID solana.PublicKey
-	payer     solana.PrivateKey
+	rpc   *rpc.Client
+	build Instructions
+	payer solana.PrivateKey
 }
 
 func New(endpoint string, programID solana.PublicKey, payer solana.PrivateKey) *Client {
-	return &Client{rpc: rpc.New(endpoint), programID: programID, payer: payer}
+	return &Client{
+		rpc:   rpc.New(endpoint),
+		build: NewInstructions(programID),
+		payer: payer,
+	}
 }
 
 func (c *Client) Payer() solana.PublicKey { return c.payer.PublicKey() }
 
 // VaultAddress is the PDA for one of the payer's vaults.
 func (c *Client) VaultAddress(vaultID uint64) (solana.PublicKey, error) {
-	address, _, err := dms.FindVaultAddress(c.programID, c.payer.PublicKey(), vaultID)
-	return address, err
+	return c.build.VaultAddress(c.payer.PublicKey(), vaultID)
 }
 
-// InitializeVault opens a native SOL vault.
+// InitializeVault opens a native SOL vault and returns its address.
 func (c *Client) InitializeVault(
 	ctx context.Context,
 	vaultID uint64,
@@ -67,82 +48,30 @@ func (c *Client) InitializeVault(
 		return solana.PublicKey{}, solana.Signature{}, err
 	}
 
-	data := args(ixInitializeVault)
-	data = binary.LittleEndian.AppendUint64(data, vaultID)
-	data = binary.LittleEndian.AppendUint64(data, uint64(timeout/time.Second))
-	// Borsh encodes a Vec as a u32 length followed by the items.
-	data = binary.LittleEndian.AppendUint32(data, uint32(len(heirs)))
-	for _, heir := range heirs {
-		data = append(data, heir.Address.Bytes()...)
-		data = binary.LittleEndian.AppendUint16(data, heir.ShareBPS)
-	}
-
-	instruction := solana.NewInstruction(c.programID, solana.AccountMetaSlice{
-		{PublicKey: c.payer.PublicKey(), IsSigner: true, IsWritable: true},
-		{PublicKey: vault, IsWritable: true},
-		// Anchor's wire convention for an omitted optional account is the
-		// program's own id in that slot — this is what makes it a SOL vault.
-		{PublicKey: c.programID},
-		{PublicKey: solana.SystemProgramID},
-	}, data)
-
-	signature, err := c.send(ctx, instruction)
+	signature, err := c.send(ctx,
+		c.build.InitializeVault(c.payer.PublicKey(), vault, vaultID, timeout, heirs))
 
 	return vault, signature, err
 }
 
-// DepositSOL funds a native vault.
 func (c *Client) DepositSOL(ctx context.Context, vault solana.PublicKey, lamports uint64) (solana.Signature, error) {
-	data := binary.LittleEndian.AppendUint64(args(ixDepositSOL), lamports)
-
-	return c.send(ctx, solana.NewInstruction(c.programID, solana.AccountMetaSlice{
-		{PublicKey: c.payer.PublicKey(), IsSigner: true, IsWritable: true},
-		{PublicKey: vault, IsWritable: true},
-		{PublicKey: solana.SystemProgramID},
-	}, data))
+	return c.send(ctx, c.build.DepositSOL(c.payer.PublicKey(), vault, lamports))
 }
 
-// WithdrawSOL takes lamports back out while the switch is still armed.
 func (c *Client) WithdrawSOL(ctx context.Context, vault solana.PublicKey, lamports uint64) (solana.Signature, error) {
-	data := binary.LittleEndian.AppendUint64(args(ixWithdrawSOL), lamports)
-
-	return c.send(ctx, solana.NewInstruction(c.programID, solana.AccountMetaSlice{
-		{PublicKey: c.payer.PublicKey(), IsSigner: true, IsWritable: true},
-		{PublicKey: vault, IsWritable: true},
-	}, data))
+	return c.send(ctx, c.build.WithdrawSOL(c.payer.PublicKey(), vault, lamports))
 }
 
-// CheckIn resets the timer.
 func (c *Client) CheckIn(ctx context.Context, vault solana.PublicKey) (solana.Signature, error) {
-	return c.send(ctx, solana.NewInstruction(c.programID, solana.AccountMetaSlice{
-		{PublicKey: c.payer.PublicKey(), IsSigner: true},
-		{PublicKey: vault, IsWritable: true},
-	}, args(ixCheckIn)))
+	return c.send(ctx, c.build.CheckIn(c.payer.PublicKey(), vault))
 }
 
-// ClaimSOL takes the payer's share of an expired vault.
 func (c *Client) ClaimSOL(ctx context.Context, vault solana.PublicKey) (solana.Signature, error) {
-	return c.send(ctx, solana.NewInstruction(c.programID, solana.AccountMetaSlice{
-		{PublicKey: c.payer.PublicKey(), IsSigner: true, IsWritable: true},
-		{PublicKey: vault, IsWritable: true},
-	}, args(ixClaimSOL)))
+	return c.send(ctx, c.build.ClaimSOL(c.payer.PublicKey(), vault))
 }
 
-// CloseVault closes an empty native vault and returns its rent.
 func (c *Client) CloseVault(ctx context.Context, vault solana.PublicKey) (solana.Signature, error) {
-	return c.send(ctx, solana.NewInstruction(c.programID, solana.AccountMetaSlice{
-		{PublicKey: c.payer.PublicKey(), IsSigner: true, IsWritable: true},
-		{PublicKey: vault, IsWritable: true},
-		// Both optional accounts omitted: a SOL vault has no token account.
-		{PublicKey: c.programID},
-		{PublicKey: c.programID},
-	}, args(ixCloseVault)))
-}
-
-// args starts an instruction payload with its discriminator.
-func args(discriminator [8]byte) []byte {
-	out := make([]byte, 0, 64)
-	return append(out, discriminator[:]...)
+	return c.send(ctx, c.build.CloseVault(c.payer.PublicKey(), vault))
 }
 
 func (c *Client) send(ctx context.Context, instruction solana.Instruction) (solana.Signature, error) {

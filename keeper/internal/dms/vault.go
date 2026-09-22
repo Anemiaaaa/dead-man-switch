@@ -80,6 +80,17 @@ func (v *Vault) Deadline() time.Time { return v.LastCheckIn.Add(v.Timeout) }
 // once the deadline is behind us.
 func (v *Vault) TimeLeft(now time.Time) time.Duration { return v.Deadline().Sub(now) }
 
+// Index returns where `address` sits in the heir table, or -1 if it is not
+// listed at all.
+func (v *Vault) Index(address solana.PublicKey) int {
+	for i, heir := range v.Beneficiaries {
+		if heir.Address.Equals(address) {
+			return i
+		}
+	}
+	return -1
+}
+
 // Claimed counts heirs who have already taken their share.
 func (v *Vault) Claimed() int {
 	var n int

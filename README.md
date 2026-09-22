@@ -8,8 +8,9 @@ shares. No custodian, no oracle, no court.
 [`9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm`](https://explorer.solana.com/address/9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm?cluster=devnet)
 
 > 🚧 Work in progress. The program is deployed and feature-complete (76 tests), the Go
-> keeper runs against it (33 tests), and a full open → fund → expire → claim cycle has run
-> on devnet. The Blink client and the demo recording are next. See [Roadmap](#roadmap).
+> keeper and the Action server run against it (50 tests), and a full open → fund → expire →
+> claim cycle has run on devnet. A public host for the blink and the demo recording are
+> next. See [Roadmap](#roadmap).
 
 ## The problem
 
@@ -161,8 +162,46 @@ A full cycle recorded on devnet, on a vault with a two-minute timer and a 60/40 
 | heir A (60%) | 0.05 SOL | 0.109995 SOL | **+0.06** less the transaction fee |
 | heir B (40%) | 0.05 SOL | 0.089995 SOL | **+0.04** less the transaction fee |
 
-The keeper watched it happen — one `due_soon` warning, silence for three scans, then one
-`expired` warning the moment the deadline passed, and silence again:
+### As a link
+
+The same two actions are served as a [Solana Action](https://solana.com/docs/advanced/actions),
+so a check-in is one tap from a link, a QR code or a feed rather than a terminal:
+
+```bash
+go run ./cmd/blink        # needs a public HTTPS origin to be reachable by a client
+```
+
+```
+GET  /actions.json                          maps this domain to the API
+GET  /api/actions/check-in?vault=<address>  the card, filled from live vault state
+POST /api/actions/check-in?vault=<address>  → an unsigned transaction
+GET  /api/actions/claim?vault=<address>     disabled, with the reason, until the deadline
+POST /api/actions/claim?vault=<address>     → an unsigned transaction
+```
+
+The server holds no keys and signs nothing — it hands the unsigned transaction to the
+user's wallet, which is the only thing that ever sees a private key. Against the live
+devnet vault the card reads:
+
+> Vault `5uyK…vFuQ` unlocks for its 2 heir(s) in 29 days, on 2026-10-22 06:49:26 UTC.
+
+and the transaction it returns simulates clean on devnet:
+
+```
+Program log: Instruction: CheckIn
+Program log: check-in at 1790062914; heirs unlocked from 1792654914
+Program 9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm success
+```
+
+Checks the server makes before handing over a transaction — that you own the vault, that
+you are a named heir, that the deadline has passed — are **not** security. The program
+enforces every one of them on chain. They exist so the user is told why before they sign,
+rather than watching a transaction fail in their wallet.
+
+### As a watcher
+
+The keeper watched the claim happen — one `due_soon` warning, silence for three scans,
+then one `expired` warning the moment the deadline passed, and silence again:
 
 ```
 msg="scan complete" vaults=2 reminders=1
@@ -212,9 +251,10 @@ keeper/                     Go services and tooling
   cmd/dmsctl/               CLI that signs: open, fund, check in, claim
   internal/dms/             hand-written account decoder + RPC reader
   internal/watch/           scan loop and reminder thresholds
+  cmd/blink/                Solana Action server — check in or claim from a link
   internal/api/             read-only HTTP index
+  internal/blink/           the Action endpoints and their spec types
   testdata/                 golden account bytes, written by the Rust tests
-blinks/                     Solana Action / Blink for the demo   (planned)
 ```
 
 The [keeper](keeper/README.md) is a read-only service — it holds no keys and signs nothing.
@@ -229,7 +269,8 @@ protocol creates.
 - [x] `claim` with share splitting, `withdraw`, `close_vault`
 - [x] Go keeper: vault monitoring, deadline reminders, REST index
 - [x] Devnet deploy, `dmsctl`, full cycle run on-chain
-- [ ] Blink for `check_in` / `claim`, demo recording
+- [x] Solana Action / Blink for `check_in` and `claim`
+- [ ] Public host for the blink, demo recording
 - [ ] Fuzzing over amounts and timestamps
 
 ## License
