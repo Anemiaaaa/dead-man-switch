@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
@@ -33,9 +34,9 @@ type Server struct {
 	Vaults    VaultReader
 	Blockhash BlockhashSource
 
-	// BaseURL is this server's public origin. Icons must be absolute URLs, so
-	// a blink served from a tunnel or a staging host needs to know its own
-	// address; it cannot infer it from a proxied request.
+	// BaseURL is this server's public origin, used to make icon URLs
+	// absolute. Leave it empty behind a proxy that sets the forwarded headers
+	// — see [Server.baseURL].
 	BaseURL string
 	Cluster string
 	Logger  *slog.Logger
@@ -84,7 +85,42 @@ func (s *Server) iconSVG(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(icon))
 }
 
-func (s *Server) iconURL() string { return s.BaseURL + "/icon.svg" }
+// baseURL is the origin absolute links are built from.
+//
+// Configuration wins, because a proxy can be lied to and because a tunnel may
+// present a name the process could never guess. But the forwarded headers are
+// the only way a container can learn the name the outside world used, and on
+// a platform that terminates TLS for you they are the normal answer — so they
+// are the fallback rather than nothing at all.
+func (s *Server) baseURL(r *http.Request) string {
+	if s.BaseURL != "" {
+		return s.BaseURL
+	}
+
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	// A forwarded header may carry a comma-separated chain; the first entry is
+	// the one the client actually used.
+	if proto := first(r.Header.Get("X-Forwarded-Proto")); proto != "" {
+		scheme = proto
+	}
+
+	host := first(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = r.Host
+	}
+
+	return scheme + "://" + host
+}
+
+func first(header string) string {
+	value, _, _ := strings.Cut(header, ",")
+	return strings.TrimSpace(value)
+}
+
+func (s *Server) iconURL(r *http.Request) string { return s.baseURL(r) + "/icon.svg" }
 
 // --- check in -------------------------------------------------------------
 
@@ -96,7 +132,7 @@ func (s *Server) getCheckIn(w http.ResponseWriter, r *http.Request) {
 	if raw == "" {
 		writeJSON(w, s.Logger, http.StatusOK, GetResponse{
 			Type:        "action",
-			Icon:        s.iconURL(),
+			Icon:        s.iconURL(r),
 			Title:       "Dead Man's Switch — check in",
 			Description: "Tell your vault you are still here. The timer resets and your heirs stay locked out for another full period.",
 			Label:       "Check in",
@@ -116,13 +152,13 @@ func (s *Server) getCheckIn(w http.ResponseWriter, r *http.Request) {
 
 	vault, err := s.load(r.Context(), raw)
 	if err != nil {
-		writeJSON(w, s.Logger, http.StatusOK, s.unavailable("Check in", err.Error()))
+		writeJSON(w, s.Logger, http.StatusOK, s.unavailable(r, "Check in", err.Error()))
 		return
 	}
 
 	response := GetResponse{
 		Type:        "action",
-		Icon:        s.iconURL(),
+		Icon:        s.iconURL(r),
 		Title:       "Dead Man's Switch — check in",
 		Description: s.describe(vault),
 		Label:       "Check in",
@@ -179,7 +215,7 @@ func (s *Server) getClaim(w http.ResponseWriter, r *http.Request) {
 	if raw == "" {
 		writeJSON(w, s.Logger, http.StatusOK, GetResponse{
 			Type:        "action",
-			Icon:        s.iconURL(),
+			Icon:        s.iconURL(r),
 			Title:       "Dead Man's Switch — claim",
 			Description: "If you are named in a vault whose owner has gone quiet past their deadline, take your share.",
 			Label:       "Claim",
@@ -199,13 +235,13 @@ func (s *Server) getClaim(w http.ResponseWriter, r *http.Request) {
 
 	vault, err := s.load(r.Context(), raw)
 	if err != nil {
-		writeJSON(w, s.Logger, http.StatusOK, s.unavailable("Claim", err.Error()))
+		writeJSON(w, s.Logger, http.StatusOK, s.unavailable(r, "Claim", err.Error()))
 		return
 	}
 
 	response := GetResponse{
 		Type:        "action",
-		Icon:        s.iconURL(),
+		Icon:        s.iconURL(r),
 		Title:       "Dead Man's Switch — claim",
 		Description: s.describe(vault),
 		Label:       "Claim my share",
@@ -338,10 +374,10 @@ func (s *Server) respondWithTransaction(
 }
 
 // unavailable renders a card that explains itself instead of a broken one.
-func (s *Server) unavailable(label, message string) GetResponse {
+func (s *Server) unavailable(r *http.Request, label, message string) GetResponse {
 	return GetResponse{
 		Type:        "action",
-		Icon:        s.iconURL(),
+		Icon:        s.iconURL(r),
 		Title:       "Dead Man's Switch",
 		Description: message,
 		Label:       label,

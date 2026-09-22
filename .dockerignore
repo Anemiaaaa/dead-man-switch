@@ -1,0 +1,15 @@
+# The build context is uploaded on every deploy, and `target/` is gigabytes of
+# Rust build artefacts. Everything the Dockerfile needs lives under keeper/.
+.git
+.github
+target
+docs
+programs
+scripts
+tests
+*.md
+*.toml
+keeper/testdata
+keeper/keeper
+keeper/dmsctl
+keeper/blink

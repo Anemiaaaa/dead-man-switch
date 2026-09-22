@@ -221,6 +221,85 @@ func TestCheckInWithoutAVaultAsksForOne(t *testing.T) {
 	}
 }
 
+// Deployed behind a proxy the app has no way of knowing its own public name
+// ahead of time, so an unset BaseURL has to fall back to what the proxy says.
+func TestIconURLFollowsTheForwardedHeadersWhenUnconfigured(t *testing.T) {
+	handler := (&Server{
+		Cluster: "devnet",
+		Now:     func() time.Time { return base },
+	}).Routes()
+
+	cases := []struct {
+		name    string
+		headers map[string]string
+		host    string
+		want    string
+	}{
+		{
+			name:    "terminated TLS in front of us",
+			headers: map[string]string{"X-Forwarded-Proto": "https"},
+			host:    "dms.fly.dev",
+			want:    "https://dms.fly.dev/icon.svg",
+		},
+		{
+			name: "a chain of proxies",
+			headers: map[string]string{
+				"X-Forwarded-Proto": "https, http",
+				"X-Forwarded-Host":  "dms.example, internal",
+			},
+			host: "internal:8081",
+			want: "https://dms.example/icon.svg",
+		},
+		{
+			name: "nothing in front of us at all",
+			host: "localhost:8081",
+			want: "http://localhost:8081/icon.svg",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/actions/check-in", nil)
+			req.Host = c.host
+			for k, v := range c.headers {
+				req.Header.Set(k, v)
+			}
+
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			var body GetResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decoding: %v", err)
+			}
+			if body.Icon != c.want {
+				t.Errorf("icon = %q, want %q", body.Icon, c.want)
+			}
+		})
+	}
+}
+
+// An explicit setting must win, because a proxy header is attacker-controlled
+// in the general case.
+func TestAConfiguredBaseURLBeatsTheHeaders(t *testing.T) {
+	f := newFixture(t, base, 30*day)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/actions/check-in", nil)
+	req.Header.Set("X-Forwarded-Host", "evil.example")
+	req.Header.Set("X-Forwarded-Proto", "https")
+
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+
+	var body GetResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	if body.Icon != "https://dms.example/icon.svg" {
+		t.Errorf("icon = %q, want the configured origin", body.Icon)
+	}
+}
+
 func TestCheckInForAKnownVaultShowsItsDeadline(t *testing.T) {
 	f := newFixture(t, base, 30*day)
 

@@ -8,7 +8,7 @@ shares. No custodian, no oracle, no court.
 [`9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm`](https://explorer.solana.com/address/9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm?cluster=devnet)
 
 > 🚧 Work in progress. The program is deployed and feature-complete (76 tests), and the Go
-> keeper and the Action server run against it (53 tests). A public host for the blink is
+> keeper and the Action server run against it (55 tests). A public host for the blink is
 > next. See [Roadmap](#roadmap).
 
 ![A vault opened, funded, left to expire, and claimed by both heirs on devnet](docs/demo.gif)

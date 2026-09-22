@@ -1,0 +1,42 @@
+# Fly.io deployment for the blink server.
+#
+#   fly launch --no-deploy --copy-config    # once, to claim the app name
+#   fly deploy --remote-only                # builds on Fly, no local Docker
+#
+# DMS_BLINK_BASE_URL is deliberately absent: the server falls back to the
+# forwarded headers Fly's proxy sets, so this config does not have to be
+# rewritten when the app name changes. Set it if you put a custom domain in
+# front.
+
+app = "dead-man-switch"
+primary_region = "fra"
+
+[build]
+dockerfile = "Dockerfile"
+
+[env]
+DMS_BLINK_LISTEN_ADDR = ":8081"
+DMS_CLUSTER = "devnet"
+DMS_RPC_ENDPOINT = "https://api.devnet.solana.com"
+DMS_PROGRAM_ID = "9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm"
+
+[http_service]
+internal_port = 8081
+force_https = true
+# The machine sleeps when nobody is looking and wakes on the first request.
+# A blink is bursty by nature — a link someone taps now and then — so paying
+# for an idle machine would be paying for nothing.
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+
+[[http_service.checks]]
+interval = "30s"
+timeout = "5s"
+grace_period = "10s"
+method = "GET"
+path = "/healthz"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"

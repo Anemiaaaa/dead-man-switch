@@ -41,8 +41,11 @@ func run(logger *slog.Logger) error {
 		endpoint = env("DMS_RPC_ENDPOINT", "https://api.devnet.solana.com")
 		program  = env("DMS_PROGRAM_ID", "9tfSr7zg9bGBfpSqqdwCACiSfAqsbdE4rNnwezFe5Ldm")
 		listen   = env("DMS_BLINK_LISTEN_ADDR", ":8081")
-		baseURL  = strings.TrimSuffix(env("DMS_BLINK_BASE_URL", "http://localhost:8081"), "/")
-		cluster  = env("DMS_CLUSTER", "devnet")
+		// Empty on purpose: behind a proxy the server reads its public origin
+		// from the forwarded headers, so the deployment does not have to know
+		// its own hostname before it has one.
+		baseURL = strings.TrimSuffix(os.Getenv("DMS_BLINK_BASE_URL"), "/")
+		cluster = env("DMS_CLUSTER", "devnet")
 	)
 
 	programID, err := solana.PublicKeyFromBase58(program)
@@ -69,17 +72,23 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	origin := baseURL
+	if origin == "" {
+		origin = "from the forwarded headers"
+	}
 	logger.Info("blink server starting",
 		"program", programID.String(),
 		"rpc", endpoint,
 		"cluster", cluster,
 		"listen", listen,
-		"base_url", baseURL,
+		"origin", origin,
 	)
-	logger.Info("share this once the host is public",
-		"check_in", "https://dial.to/?action=solana-action:"+baseURL+"/api/actions/check-in",
-		"claim", "https://dial.to/?action=solana-action:"+baseURL+"/api/actions/claim",
-	)
+	if baseURL != "" {
+		logger.Info("share these once the host is reachable",
+			"check_in", "https://dial.to/?action=solana-action:"+baseURL+"/api/actions/check-in",
+			"claim", "https://dial.to/?action=solana-action:"+baseURL+"/api/actions/claim",
+		)
+	}
 
 	errs := make(chan error, 1)
 	go func() { errs <- srv.ListenAndServe() }()
