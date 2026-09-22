@@ -146,19 +146,102 @@ vault is frozen for the owner: no check-in, no deposit, no edits.
    release builds as well, so an overflow aborts rather than wraps.
 6. **A vault can only be closed once it is empty**, so no balance is ever orphaned.
 
-## Try it on devnet
+## Using it
 
-`dmsctl` drives a vault from the terminal — no browser, no TypeScript toolchain.
+The program is already deployed to devnet, so nothing needs building on chain. You need
+the [Solana CLI](https://docs.anza.xyz/cli/install) for a wallet, and Go 1.25+ to build the
+client. On Windows, run both inside WSL — Anchor is not supported natively.
 
 ```bash
+solana-keygen new                              # if you have no wallet yet
+solana airdrop 2 --url devnet                  # devnet SOL, free
 cd keeper && go build -o dmsctl ./cmd/dmsctl
-
-./dmsctl open     --id 1 --timeout 30d --heir <pubkey>:7000 --heir <pubkey>:3000
-./dmsctl deposit  --id 1 --sol 0.2
-./dmsctl check-in --id 1
-./dmsctl status
-./dmsctl claim    --vault <address> --wallet heir.json
 ```
+
+### Open a vault
+
+Name the heirs and how long your silence may last. Shares are in basis points and must
+total exactly 10,000 — a vault whose shares do not add up to 100% is refused rather than
+stored.
+
+```bash
+./dmsctl open --id 1 --timeout 30d \
+    --heir 21Le9a8aLavKt8fBbNXbJBGkLAgi27rA4Kn7aihmyEbQ:7000 \
+    --heir 8zTHrsHu59z5oEgbw2DAYj3Kqmc1xQSQfwh4jHyTH7s6:3000
+```
+
+`--id` is a salt, so one wallet can run several independent vaults. `--timeout` takes
+`30d`, `12h`, `5m` — anything from one minute to ten years.
+
+### Fund it, and take it back
+
+```bash
+./dmsctl deposit  --id 1 --sol 0.5
+./dmsctl withdraw --id 1 --sol 0.2      # yours until an heir actually claims
+```
+
+Deposited SOL lives on the vault PDA, which this program owns. Nothing but this program
+can move it — including you, except through `withdraw`.
+
+### Stay alive
+
+```bash
+./dmsctl check-in --id 1
+```
+
+This is the whole protocol. Each check-in pushes the deadline out by another full timeout.
+Miss it and your heirs can claim.
+
+### See where things stand
+
+```bash
+./dmsctl status --id 1      # one vault
+./dmsctl status             # every vault the program owns
+```
+
+```
+status    active
+balance   0.502087880 SOL
+deadline  2026-10-22T06:49:26Z (719h58m left)
+heir      21Le…yEbQ  70.00%
+```
+
+Statuses are `active`, `due_soon`, `expired` and `triggered`. The loud one is **`expired`**:
+heirs can claim right now but none has yet — you have not lost the vault, you are one
+transaction away from it.
+
+### Claim, as an heir
+
+An heir needs the vault address, not your vault id, and signs with their own key:
+
+```bash
+./dmsctl claim --vault <vault-address> --wallet heir.json
+```
+
+Each heir claims independently — nobody waits for anyone else. The first claim freezes the
+total that shares are measured against, so a late heir still gets their percentage of what
+the vault held, not of what is left.
+
+### Close it
+
+```bash
+./dmsctl close --id 1       # only when empty; returns the rent to you
+```
+
+### Watch it for me
+
+The keeper warns you before a deadline instead of you remembering. It holds no keys.
+
+```bash
+cd keeper && go run ./cmd/keeper
+```
+
+```
+curl localhost:8080/v1/vaults
+curl 'localhost:8080/v1/vaults?status=expired'
+```
+
+---
 
 A full cycle recorded on devnet, on a vault with a two-minute timer and a 60/40 split:
 
